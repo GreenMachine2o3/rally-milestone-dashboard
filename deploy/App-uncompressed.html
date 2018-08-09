@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CustomDash</title>
+    <title>Milestone Progress Dashboard</title>
 
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
 
     <script type="text/javascript">
         Rally.onReady(function () {
-                Ext.define('CustomApp', {
+                Ext.define('Milestone Progress Dashboard', {
     extend: 'Rally.app.App',
     componentCls: 'app',
 
@@ -20,6 +20,7 @@
     refinedPercentage: [],
     selectedIter: undefined,
     milestones: [],
+    milestonesUsed: [],
     milestoneNumber: undefined,
     grids: [],
     gridsMade: 0,
@@ -78,17 +79,13 @@
         this._loadReleases();
     },
     _loadReleases: function(){
-        var milestoneStore = Ext.create('Rally.data.wsapi.Store', {
+        const milestoneStore = Ext.create('Rally.data.wsapi.Store', {
                 model: 'Milestone',
                 limit: Infinity,
                 autoLoad:true,
-                context: {
-                    projectScopeUp: false
-                },
                 listeners: {
-                    load: function(store, data, success) {
+                    load: function(store, data) {
                         this.milestoneNumber = data.length-1;
-                        this.milestonesRemaining = data.length+1;
                         for(var i = 0; i < data.length; i++){
                             if(this.milestones.length === 0){
                                 this.milestones.push(data[i].data.Name);
@@ -104,7 +101,6 @@
                                 }
                             }
                         }
-                        this.milestonesRemaining = this.milestones.length;
                         this.getFeatures();
                     },
                     scope:this
@@ -115,13 +111,13 @@
         this.getFeatures(null, "No Milestone", 'Final');
     },
     getFeatures: function(){
-        var mystore = Ext.create('Rally.data.wsapi.Store', {
+        const mystore = Ext.create('Rally.data.wsapi.Store', {
             model: 'portfolioitem/feature',
             context: {
                 projectScopeUp: false
             },
             listeners: {
-                load: function(store, data, success) {
+                load: function(store, data) {
                     var milestonesFound = 0;
                     for(var i = 0; i < data.length; i++){
                         if(data[i].data.Milestones.Count === 0){
@@ -129,6 +125,7 @@
                                 this.featuresByMilestone[1000000].push(data[i]);
                             }
                             else {
+                                this.milestonesUsed[1000000] = null;
                                 milestonesFound++;
                                 this.featuresByMilestone[1000000] = [data[i]];
                             }
@@ -140,7 +137,8 @@
                                         if (this.featuresByMilestone[k]) {
                                             this.featuresByMilestone[k].push(data[i]);
                                         }
-                                        else {
+                                        else{
+                                            this.milestonesUsed[k] = this.milestones[k];
                                             milestonesFound++;
                                             this.featuresByMilestone[k] = [data[i]];
                                         }
@@ -149,15 +147,17 @@
                             }
                         }
                     }
-                    var that = this;
-                    this.featuresByMilestone.forEach(function (value, index) {
-                        if(that.milestones[index]) {
-                            that.getUserStoryData(store, that.featuresByMilestone[index], that.milestones[index], index, milestonesFound);
-                        }
-                        else{
-                            that.getUserStoryData(store, that.featuresByMilestone[index], null, index, milestonesFound);
-                        }
+                    var milestonesUsedSorted = [];
+                    this.milestonesUsed.forEach(function (value) {
+                        milestonesUsedSorted.push(value);
                     });
+                    this.milestonesUsed = milestonesUsedSorted;
+                    var featuresByMilestoneSorted = [];
+                    this.featuresByMilestone.forEach(function (value) {
+                        featuresByMilestoneSorted.push(value);
+                    });
+                    this.featuresByMilestone = featuresByMilestoneSorted;
+                    this.getUserStoryData(store, this.featuresByMilestone, milestonesFound);
                 },
                 scope: this
             },
@@ -165,49 +165,43 @@
             fetch: ['FormattedID', 'Name', 'PercentDoneByStoryPlanEstimate', 'RefinedEstimate', 'LeafStoryPlanEstimateTotal', 'Project', 'Release', 'Milestones']
         });
     },
-    getUserStoryData: function(_store, _data, milestoneName, _i, milestoneNumber){
+    getUserStoryData: function(_store, _data, milestoneNumber){
         this.pointsRemaining = [];
-        //filter for features in this milestone
-            var myFilters = Ext.create('Rally.data.QueryFilter', {
-                    property: 'Feature.Milestones.Name',
-                    operation: 'contains',
-                    value: milestoneName
-            });
-            var userStoryStore = Ext.create('Rally.data.wsapi.Store', {
-                model: 'User Story',
-                filters: myFilters,
-                limit: Infinity,
-                context: {
-                    workspace: this.getContext().getWorkspaceRef(),
-                    project: null
-                },
-                fetch: ['Feature', 'PlanEstimate', 'ScheduleState', 'Parent'],
-                listeners: {
-                    load: function (store, data, success) {
-                        var totalTotals = 0;
-                        var totalRefined = 0;
-                        var totalAccepted = 0;
-                        if (data) {
-                            for (var i = 0; i < _data.length; i++) {
+        const userStoryStore = Ext.create('Rally.data.wsapi.Store', {
+            model: 'User Story',
+            limit: Infinity,
+            context: {
+                workspace: this.getContext().getWorkspaceRef(),
+                project: null
+            },
+            fetch: ['Feature', 'PlanEstimate', 'ScheduleState', 'Parent'],
+            listeners: {
+                load: function (store, data) {
+                    if (data) {
+                        for (var h = 0; h < _data.length; h++) {
+                            var totalTotals = 0;
+                            var totalRefined = 0;
+                            var totalAccepted = 0;
+                            for (var i = 0; i < _data[h].length; i++) {
                                 var remainingPoints = 0;
                                 var totalPoints = 0;
                                 var refinedPoints = 0;
                                 var acceptedPoints = 0;
                                 for (var j = 0; j < data.length; j++) {
-                                    if (data[j].data.Feature != null && data[j].data.Feature._ref === _data[i].data._ref) {
+                                    if (data[j].data.Feature !== null && data[j].data.Feature._ref === _data[h][i].data._ref) {
                                         //only want remaining points for unaccepted stories
                                         totalPoints += data[j].data.PlanEstimate;
                                         var scheduleState = data[j].data.ScheduleState;
                                         if (scheduleState !== 'Accepted') {
-                                            if(!(data[j].data.Parent && data[j].data.Parent._ref !== _data[i].data._ref)) {
+                                            //only want direct children user stories
+                                            if (!(data[j].data.Parent && data[j].data.Parent._ref !== _data[h][i].data._ref)) {
                                                 remainingPoints += data[j].data.PlanEstimate;
                                             }
                                         }
-                                        else{
+                                        else {
                                             acceptedPoints += data[j].data.PlanEstimate;
                                         }
-                                        if(scheduleState === 'Defined' || scheduleState === 'In-Progress'
-                                        || scheduleState === 'Completed' || scheduleState === 'Accepted'){
+                                        if (scheduleState === 'Defined' || scheduleState === 'In-Progress' || scheduleState === 'Completed' || scheduleState === 'Accepted') {
                                             refinedPoints += data[j].data.PlanEstimate;
                                         }
                                     }
@@ -215,21 +209,19 @@
                                 totalTotals += totalPoints;
                                 totalRefined += refinedPoints;
                                 totalAccepted += acceptedPoints;
-                                if(totalPoints !== 0) {
-                                    this.refinedPercentage[i] = refinedPoints/totalPoints;
-                                }else{
+                                if (totalPoints !== 0) {
+                                    this.refinedPercentage[i] = refinedPoints / totalPoints;
+                                } else {
                                     this.refinedPercentage[i] = 0;
                                 }
                                 this.pointsRemaining[i] = remainingPoints;
                             }
-                            this.totalRefinedPercent[_i]=(totalRefined / totalTotals);
-                            this.totalProgressPercent[_i]=(totalAccepted / totalTotals);
+                            this.totalRefinedPercent[h]=(totalRefined / totalTotals);
+                            this.totalProgressPercent[h]=(totalAccepted / totalTotals);
+                            //build the grid with all necessary data
+                            this._onStoreBuilt(_store, _data[h], this.milestonesUsed[h], h, milestoneNumber);
                         }
-                        if(milestoneName === null){
-                            milestoneName = 'No Milestone';
-                        }
-                        //build the grid with all necessary data
-                        this._onStoreBuilt(_store, _data, milestoneName, _i, milestoneNumber);
+                    }
                     },
                     scope: this
                 },
@@ -245,7 +237,7 @@
             text: 'ID',
             dataIndex: 'FormattedID',
             tpl: Ext.create('Rally.ui.renderer.template.FormattedIDTemplate'),
-            flex: .5,
+            flex: 0.5,
             summaryRenderer: function() {
                 return "Totals";
             }
@@ -258,7 +250,7 @@
             dataIndex: 'PercentDoneByStoryPlanEstimate',
             text: 'Feature Progress',
             tpl: Ext.create('Rally.ui.renderer.template.progressbar.PercentDoneByStoryPlanEstimateTemplate'),
-            flex:.7,
+            flex: 0.7,
             summaryRenderer: function() {
                 return _progress;
             }
@@ -267,7 +259,7 @@
             dataIndex: 'PointsRemainingRefined',
             text: 'Refined %',
             tpl: this.refinedProgressBar,
-            flex: .7,
+            flex: 0.7,
             summaryRenderer: function() {
                 return _refined;
             }
@@ -297,6 +289,9 @@
         }];
     },
     _onStoreBuilt: function(store, data, title, _i, milestoneNumber) {
+        if(title === null){
+            title = 'No Milestone';
+        }
         var _pointsRemaining = this.pointsRemaining;
         var _refinedPercentage = this.refinedPercentage;
         var recordIndex = -1;
@@ -350,8 +345,8 @@
 });
 
 
-            Rally.launchApp('CustomApp', {
-                name:"CustomDash",
+            Rally.launchApp('Milestone Progress Dashboard', {
+                name:"Milestone Progress Dashboard",
                 parentRepos:"",
                 version:"0.1.1"
             });

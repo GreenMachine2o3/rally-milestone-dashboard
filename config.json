@@ -1,6 +1,6 @@
 {
-    "name": "CustomDash",
-    "className": "CustomApp",
+    "name": "Milestone Progress Dashboard",
+    "className": "Milestone Progress Dashboard",
     "server": "https://rally1.rallydev.com",
     "sdk": "2.1",
     "javascript": [

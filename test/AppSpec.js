@@ -1,7 +1,7 @@
-describe('CustomApp', function() {
+describe('Milestone Progress Dashboard', function() {
 
     it('should render the app', function() {
-        var app = Rally.test.Harness.launchApp('CustomApp');
+        var app = Rally.test.Harness.launchApp('Milestone Progress Dashboard');
         expect(app.getEl()).toBeDefined();
     });
     

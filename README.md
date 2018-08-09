@@ -1,4 +1,4 @@
-CustomDash
+Milestone Progress Dashboard
 =========================
 
 ## Overview
@@ -6,7 +6,7 @@ CustomDash
 
 ## License
 
-CustomDash is released under the MIT license.  See the file [LICENSE](./LICENSE) for the full text.
+Milestone Progress Dashboard is released under the MIT license.  See the file [LICENSE](./LICENSE) for the full text.
 
 ##Documentation for SDK
 
