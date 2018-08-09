@@ -207,8 +207,16 @@ Ext.define('Milestone Progress Dashboard', {
                                 }
                                 this.pointsRemaining[i] = remainingPoints;
                             }
-                            this.totalRefinedPercent[h]=(totalRefined / totalTotals);
-                            this.totalProgressPercent[h]=(totalAccepted / totalTotals);
+                            var refinedPercent = (totalRefined/totalTotals);
+                            var progressPercent = (totalAccepted/totalTotals);
+                            if(isNaN(refinedPercent)){
+                                refinedPercent = 0;
+                            }
+                            if(isNaN(progressPercent)){
+                                progressPercent = 0;
+                            }
+                            this.totalRefinedPercent[h]= refinedPercent;
+                            this.totalProgressPercent[h]= progressPercent;
                             //build the grid with all necessary data
                             this._onStoreBuilt(_store, _data[h], this.milestonesUsed[h], h, milestoneNumber);
                         }
