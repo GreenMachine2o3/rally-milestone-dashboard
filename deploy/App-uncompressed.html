@@ -34,6 +34,9 @@
     totalRefinedPercent: [],
     totalProgressPercent: [],
 
+    projects: [],
+    projectHasPreState: [],
+
     refinedProgressBar: undefined,
 
     listeners: {
@@ -76,39 +79,82 @@
                 return '#D1D1D1';
             }
         });
-        this._loadReleases();
+        this.getProjects();
+    },
+    getProjects: function(){
+        var projectList = [];
+        var xhr = new XMLHttpRequest();
+        var url = 'https://rally1.rallydev.com/slm/webservice/v2.0/project/';
+        xhr.open('GET', url);
+        xhr.setRequestHeader('Content-type', 'application/json');
+        var that = this;
+        xhr.onreadystatechange = function() {
+            //Call a function when the state changes.
+            if(xhr.readyState === 4 && xhr.status === 200) {
+                that.projects = JSON.parse(xhr.responseText).QueryResult.Results;
+                for(var i = 0; i < that.projects.length; i++){
+                    that.getProjectScheduleState(that.projects[i]);
+                }
+            }
+        };
+        xhr.send();
+    },
+    getProjectScheduleState: function(project){
+        project._ref = project._ref.substring(project._ref.indexOf("/project"), project._ref.length);
+        Rally.data.ModelFactory.getModel({
+            type: 'UserStory',
+            context: {
+                project: project._ref,
+                projectScopeUp: false,
+                projectScopeDown: false
+            },
+            success: function(model){
+                model.getField('ScheduleState').getAllowedValueStore().load({
+                    callback: function(records, operation, success) {
+                        if(records[0].get('StringValue') === 'Defined'){
+                            this.projectHasPreState[project._ref] = [false];
+                        }
+                        else{
+                            this.projectHasPreState[project._ref] = [true];
+                        }
+                        if(Object.keys(this.projectHasPreState).length === this.projects.length){
+                            this._loadReleases();
+                        }
+                    },
+                    scope: this
+                });
+            },
+            scope: this
+        });
     },
     _loadReleases: function(){
         const milestoneStore = Ext.create('Rally.data.wsapi.Store', {
-                model: 'Milestone',
-                limit: Infinity,
-                autoLoad:true,
-                listeners: {
-                    load: function(store, data) {
-                        this.milestoneNumber = data.length-1;
-                        for(var i = 0; i < data.length; i++){
-                            if(this.milestones.length === 0){
-                                this.milestones.push(data[i].data.Name);
-                            }
-                            else {
-                                for (var j = 0; j < this.milestones.length; j++) {
-                                    if(this.milestones[j] === data[i].data.Name){
-                                        break;
-                                    }
-                                    if(j === this.milestones.length-1){
-                                        this.milestones.push(data[i].data.Name);
-                                    }
+            model: 'Milestone',
+            limit: Infinity,
+            autoLoad:true,
+            listeners: {
+                load: function(store, data) {
+                    this.milestoneNumber = data.length-1;
+                    for(var i = 0; i < data.length; i++){
+                        if(this.milestones.length === 0){
+                            this.milestones.push(data[i].data.Name);
+                        }
+                        else {
+                            for (var j = 0; j < this.milestones.length; j++) {
+                                if(this.milestones[j] === data[i].data.Name){
+                                    break;
+                                }
+                                if(j === this.milestones.length-1){
+                                    this.milestones.push(data[i].data.Name);
                                 }
                             }
                         }
-                        this.getFeatures();
-                    },
-                    scope:this
-                }
+                    }
+                    this.getFeatures();
+                },
+                scope:this
+            }
         });
-    },
-    _finalStore: function(){
-        this.getFeatures(null, "No Milestone", 'Final');
     },
     getFeatures: function(){
         const mystore = Ext.create('Rally.data.wsapi.Store', {
@@ -178,6 +224,7 @@
             listeners: {
                 load: function (store, data) {
                     if (data) {
+                        var preDefinedState = false;
                         for (var h = 0; h < _data.length; h++) {
                             var totalTotals = 0;
                             var totalRefined = 0;
@@ -187,6 +234,7 @@
                                 var totalPoints = 0;
                                 var refinedPoints = 0;
                                 var acceptedPoints = 0;
+                                preDefinedState = this.projectHasPreState[_data[h][i].data.Project._ref] ? this.projectHasPreState[_data[h][i].data.Project._ref][0] : true;
                                 for (var j = 0; j < data.length; j++) {
                                     if (data[j].data.Feature !== null && data[j].data.Feature._ref === _data[h][i].data._ref) {
                                         //only want remaining points for unaccepted stories
@@ -201,8 +249,15 @@
                                         else {
                                             acceptedPoints += data[j].data.PlanEstimate;
                                         }
-                                        if (scheduleState === 'Defined' || scheduleState === 'In-Progress' || scheduleState === 'Completed' || scheduleState === 'Accepted') {
-                                            refinedPoints += data[j].data.PlanEstimate;
+                                        if(preDefinedState) {
+                                            if (scheduleState === 'Defined' || scheduleState === 'In-Progress' || scheduleState === 'Completed' || scheduleState === 'Accepted') {
+                                                refinedPoints += data[j].data.PlanEstimate;
+                                            }
+                                        }
+                                        else{
+                                            if(scheduleState === 'In-Progress' || scheduleState === 'Completed' || scheduleState === 'Accepted') {
+                                                refinedPoints += data[j].data.PlanEstimate;
+                                            }
                                         }
                                     }
                                 }
@@ -216,18 +271,26 @@
                                 }
                                 this.pointsRemaining[i] = remainingPoints;
                             }
-                            this.totalRefinedPercent[h]=(totalRefined / totalTotals);
-                            this.totalProgressPercent[h]=(totalAccepted / totalTotals);
+                            var refinedPercent = (totalRefined/totalTotals);
+                            var progressPercent = (totalAccepted/totalTotals);
+                            if(isNaN(refinedPercent)){
+                                refinedPercent = 0;
+                            }
+                            if(isNaN(progressPercent)){
+                                progressPercent = 0;
+                            }
+                            this.totalRefinedPercent[h]= refinedPercent;
+                            this.totalProgressPercent[h]= progressPercent;
                             //build the grid with all necessary data
                             this._onStoreBuilt(_store, _data[h], this.milestonesUsed[h], h, milestoneNumber);
                         }
                     }
-                    },
-                    scope: this
                 },
-                autoLoad: true,
                 scope: this
-            });
+            },
+            autoLoad: true,
+            scope: this
+        });
     },
     getColumnCfgs: function(_index){
         var _refined = '%' + Math.round(this.totalRefinedPercent[_index]*100).toString();
