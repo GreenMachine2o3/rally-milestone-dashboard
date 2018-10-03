@@ -20,6 +20,7 @@
     refinedPercentage: [],
     selectedIter: undefined,
     milestones: [],
+    targetDates: [],
     milestonesUsed: [],
     milestoneNumber: undefined,
     grids: [],
@@ -138,6 +139,7 @@
                     for(var i = 0; i < data.length; i++){
                         if(this.milestones.length === 0){
                             this.milestones.push(data[i].data.Name);
+                            this.targetDates.push(data[i].data.TargetDate);
                         }
                         else {
                             for (var j = 0; j < this.milestones.length; j++) {
@@ -146,15 +148,105 @@
                                 }
                                 if(j === this.milestones.length-1){
                                     this.milestones.push(data[i].data.Name);
+                                    this.targetDates.push(data[i].data.TargetDate);
                                 }
                             }
                         }
                     }
-                    this.getFeatures();
+                    this.sortMilestones(this.milestones, this.targetDates);
                 },
                 scope:this
             }
         });
+    },
+    getMonthNumber: function(month){
+       if(month === "Jan"){
+           return 1;
+       }
+       else if(month === "Feb"){
+           return 2;
+       }
+       else if(month === "Mar"){
+           return 3;
+       }
+       else if(month === "Apr"){
+           return 4;
+       }
+       else if(month === "May"){
+           return 5;
+       }
+       else if(month === "Jun"){
+           return 6;
+       }
+       else if(month === "Jul"){
+           return 7;
+       }
+       else if(month === "Aug"){
+           return 8;
+       }
+       else if(month === "Sep"){
+           return 9;
+       }
+       else if(month === "Oct"){
+           return 10;
+       }
+       else if(month === "Nov"){
+           return 11;
+       }
+       else if(month === "Dec"){
+           return 12;
+       }
+       else{
+           return 0;
+       }
+    },
+    isGreater: function(date1, date2){
+        if(date1 && !date2){
+            return true;
+        }
+        else if(!date1){
+            return false;
+        }
+        else{
+            var newDate1 = date1.toString().split(" ");
+            var newDate2 = date2.toString().split(" ");
+            if(newDate1[3] > newDate2[3]){
+                return true;
+            }
+            else if(newDate1[3] < newDate2[3]){
+                return false;
+            }
+            else if (this.getMonthNumber(newDate1[1]) > this.getMonthNumber(newDate2[1])){
+                return true;
+            }
+            else if (this.getMonthNumber(newDate1[1]) < this.getMonthNumber(newDate2[1])){
+                return false;
+            }
+            else if(newDate1[2] > newDate2[2]){
+                return true;
+            }
+            else if(newDate1[2] < newDate2[2]){
+                return false;
+            }
+            else{
+                return false;
+            }
+        }
+    },
+    sortMilestones: function(milestones, targetDates){
+        for(var i = 0; i < milestones.length-1; i++){
+            for(var j = 0; j < milestones.length-i-1; j++){
+                if(this.isGreater(targetDates[j], targetDates[j+1])){
+                    var tempMile = milestones[j];
+                    var tempDate = targetDates[j];
+                    milestones[j] = milestones[j+1];
+                    targetDates[j] = targetDates[j+1];
+                    milestones[j+1] = tempMile;
+                    targetDates[j+1] = tempDate;
+                }
+            }
+        }
+        this.getFeatures();
     },
     getFeatures: function(){
         const mystore = Ext.create('Rally.data.wsapi.Store', {
