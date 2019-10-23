@@ -242,6 +242,7 @@ Ext.define('Milestone Progress Dashboard', {
     getFeatures: function(){
         const mystore = Ext.create('Rally.data.wsapi.Store', {
             model: 'portfolioitem/feature',
+            limit: Infinity,
             context: {
                 projectScopeUp: false
             },
